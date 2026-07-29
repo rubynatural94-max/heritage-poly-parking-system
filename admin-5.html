@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Heritage Polytechnic Parking System</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+<!-- Firebase (compat SDK, loaded via script tags — no build step) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<style>
+  :root{
+    --asphalt:#1C1F22;
+    --asphalt-light:#2A2E33;
+    --line-yellow:#F2C230;
+    --permit-teal:#0F6B5C;
+    --permit-teal-light:#14876F;
+    --paper:#F5F3EE;
+    --ink:#1C1F22;
+    --safety-orange:#D65A31;
+    --white:#FFFFFF;
+    --gray:#8A9098;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:'Inter', sans-serif; background:var(--paper); color:var(--ink);}
+  h1,h2,h3{font-family:'Oswald', sans-serif; letter-spacing:0.02em;}
+  button{font-family:inherit; cursor:pointer;}
+
+  /* ---------- Layout shell ---------- */
+  .shell{display:flex; min-height:100vh;}
+
+  /* Sidebar */
+  .sidebar{
+    width:230px; background:var(--asphalt); color:var(--paper); flex-shrink:0;
+    display:flex; flex-direction:column; border-right:4px solid var(--line-yellow);
+    position:fixed; top:0; left:0; bottom:0; z-index:150; transition:left 0.3s ease;
+  }
+  .sidebar .brand{padding:20px 18px; border-bottom:1px solid var(--asphalt-light);}
+  .sidebar .brand h1{font-size:14px; text-transform:uppercase;}
+  .sidebar .brand span{display:block; font-family:'IBM Plex Mono'; font-size:11px; color:var(--line-yellow); margin-top:4px;}
+  .tab-list{list-style:none; padding:14px 10px; flex:1;}
+  .tab-list li{margin-bottom:4px;}
+  .tab-btn{
+    width:100%; text-align:left; background:none; border:none; color:var(--paper);
+    padding:12px 12px; border-radius:7px; font-size:13.5px; font-family:'Oswald'; font-weight:500;
+    letter-spacing:0.02em; text-transform:uppercase; display:flex; align-items:center; gap:10px;
+  }
+  .tab-btn:hover{background:var(--asphalt-light);}
+  .tab-btn.active{background:var(--permit-teal); color:var(--white);}
+  .sidebar-footer{padding:16px; border-top:1px solid var(--asphalt-light);}
+  .logout-btn{
+    width:100%; background:var(--safety-orange); color:var(--white); border:none; padding:10px;
+    border-radius:7px; font-family:'Oswald'; font-weight:600; font-size:12.5px; text-transform:uppercase;
+  }
+
+  .close-sidebar, .open-sidebar{display:none;}
+
+  /* ---------- Login gate (shown when there's no valid session) ---------- */
+  .gate-overlay{
+    position:fixed; inset:0; background:var(--asphalt);
+    display:flex; align-items:center; justify-content:center; z-index:400; padding:16px;
+  }
+  .permit-card{
+    background:var(--white); width:100%; max-width:360px; border-radius:14px; overflow:hidden;
+    box-shadow:0 20px 50px rgba(0,0,0,0.4);
+  }
+  .permit-top{background:var(--permit-teal); color:var(--white); padding:18px 22px;}
+  .permit-top h3{font-size:15px; margin-bottom:2px;}
+  .permit-top span{font-family:'IBM Plex Mono'; font-size:11px; color:#BFE9DE;}
+  .perforation{
+    height:14px; background:
+      radial-gradient(circle 6px at 0 50%, transparent 6px, var(--permit-teal) 7px) left,
+      var(--white);
+    position:relative;
+  }
+  .perforation::before{content:""; position:absolute; top:6px; left:0; right:0; border-top:2px dashed #CFCBC0;}
+  .permit-body{padding:22px;}
+  .permit-body .field{margin-bottom:14px;}
+  .permit-body .field label{display:block; font-size:12px; font-family:'IBM Plex Mono'; color:var(--gray); margin-bottom:5px;}
+  .permit-body .field input{width:100%; padding:11px 12px; border:1.5px solid #DDD9CE; border-radius:7px; font-size:14px; font-family:'Inter';}
+  .permit-body .field input:focus{outline:none; border-color:var(--permit-teal);}
+  .login-submit{
+    width:100%; background:var(--line-yellow); color:var(--asphalt); border:none; padding:13px; border-radius:7px;
+    font-family:'Oswald'; font-weight:600; letter-spacing:0.03em; font-size:14px; margin-top:6px;
+  }
+  .login-submit:hover{background:#E5B31E;}
+  .login-msg{font-size:12.5px; margin-top:10px; text-align:center; min-height:16px;}
+  .login-msg.error{color:var(--safety-orange);}
+  .login-msg.ok{color:var(--permit-teal);}
+
+  /* Main */
+  .main{margin-left:230px; flex:1; min-width:0;}
+  .topbar{
+    background:var(--white); border-bottom:1px solid #E2DFD6; padding:16px 26px;
+    display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:50;
+  }
+  .topbar h2{font-size:16px; text-transform:uppercase;}
+  .role-pill{
+    font-family:'IBM Plex Mono'; font-size:11px; padding:5px 10px; border-radius:20px;
+    background:var(--permit-teal); color:var(--white);
+  }
+  .role-pill.security{background:var(--safety-orange);}
+
+  .content-area{padding:26px;}
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  .eyebrow{color:var(--permit-teal); font-family:'IBM Plex Mono'; font-size:11px; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:6px;}
+  .panel h3.title{font-size:22px; margin-bottom:18px;}
+
+  /* Stat cards */
+  .stat-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin-bottom:10px;}
+  .stat-card{background:var(--white); border:1px solid #E2DFD6; border-radius:10px; padding:18px; border-top:4px solid var(--line-yellow);}
+  .stat-card .val{font-family:'Oswald'; font-size:30px; color:var(--asphalt);}
+  .stat-card .lbl{font-family:'IBM Plex Mono'; font-size:11px; color:var(--gray); text-transform:uppercase; margin-top:4px;}
+
+  /* Table */
+  .table-wrap{background:var(--white); border:1px solid #E2DFD6; border-radius:10px; overflow-x:auto; margin-top:16px;}
+  table{width:100%; border-collapse:collapse; font-size:13.5px; min-width:560px;}
+  th{background:var(--asphalt); color:var(--paper); text-align:left; padding:10px 14px; font-family:'Oswald'; font-weight:500; font-size:12px; text-transform:uppercase;}
+  td{padding:10px 14px; border-bottom:1px solid #EFEBE0;}
+  tr:last-child td{border-bottom:none;}
+  .badge{padding:3px 9px; border-radius:20px; font-size:11px; font-family:'IBM Plex Mono';}
+  .badge.free, .badge.active-status{background:#E4F3EE; color:var(--permit-teal);}
+  .badge.occupied, .badge.suspended{background:#FBE7E0; color:var(--safety-orange);}
+  .row-actions button{
+    border:none; background:none; font-size:12px; font-family:'Inter'; font-weight:600; cursor:pointer; margin-right:10px;
+  }
+  .row-actions .edit-btn{color:var(--permit-teal);}
+  .row-actions .del-btn{color:var(--safety-orange);}
+  .row-actions .toggle-btn{color:var(--asphalt);}
+
+  /* Forms */
+  .form-toolbar{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;}
+  .search-row{margin-top:14px;}
+  .search-row input{
+    width:100%; max-width:420px; padding:10px 14px; border:1.5px solid #DDD9CE; border-radius:20px;
+    font-size:13.5px; font-family:'Inter'; background:var(--white);
+  }
+  .search-row input:focus{outline:none; border-color:var(--permit-teal);}
+  .add-btn{
+    background:var(--permit-teal); color:var(--white); border:none; padding:10px 16px; border-radius:7px;
+    font-family:'Oswald'; font-weight:600; font-size:12.5px; text-transform:uppercase; letter-spacing:0.03em;
+  }
+  .form-card{
+    background:var(--white); border:1px solid #E2DFD6; border-radius:10px; padding:20px; margin-top:16px; display:none;
+  }
+  .form-card.open{display:block;}
+  .form-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px;}
+  .field label{display:block; font-size:11px; font-family:'IBM Plex Mono'; color:var(--gray); margin-bottom:5px; text-transform:uppercase;}
+  .field input, .field select{
+    width:100%; padding:10px 12px; border:1.5px solid #DDD9CE; border-radius:7px; font-size:13.5px; font-family:'Inter';
+  }
+  .form-actions{margin-top:16px; display:flex; gap:10px;}
+  .save-btn{background:var(--line-yellow); color:var(--asphalt); border:none; padding:10px 18px; border-radius:7px; font-family:'Oswald'; font-weight:600; font-size:12.5px; text-transform:uppercase;}
+  .cancel-btn{background:none; border:1.5px solid #DDD9CE; padding:10px 18px; border-radius:7px; font-family:'Oswald'; font-weight:600; font-size:12.5px; text-transform:uppercase; color:var(--gray);}
+
+  .empty-state{padding:28px; text-align:center; color:var(--gray); font-size:13.5px;}
+  .config-note{
+    background:#FBE7E0; border:1px solid #F0C4B2; color:#8A3A20; padding:12px 16px; border-radius:8px;
+    font-size:12.5px; margin-bottom:18px;
+  }
+
+  /* ---------- Receipt (hidden on screen, shown only when printing) ---------- */
+  #receiptPrintArea{display:none;}
+  .receipt-box{font-family:'Inter'; color:var(--ink); max-width:380px; margin:0 auto; padding:20px;}
+  .receipt-box h2{font-size:16px; text-align:center;}
+  .receipt-sub{text-align:center; font-family:'IBM Plex Mono'; font-size:11px; color:var(--gray); margin-bottom:14px;}
+  .receipt-line{border-top:2px dashed var(--asphalt); margin:12px 0;}
+  .receipt-table{width:100%; border-collapse:collapse; font-size:13px;}
+  .receipt-table td{padding:6px 0;}
+  .receipt-table td:first-child{color:var(--gray); font-family:'IBM Plex Mono'; font-size:11px; text-transform:uppercase;}
+  .receipt-table td:last-child{text-align:right; font-weight:600;}
+  .receipt-total{text-align:center; font-family:'Oswald'; font-size:20px; margin:14px 0;}
+  .receipt-footer{text-align:center; font-size:10.5px; color:var(--gray);}
+
+  @media print{
+    body *{visibility:hidden;}
+    #receiptPrintArea, #receiptPrintArea *{visibility:visible;}
+    #receiptPrintArea{display:block; position:absolute; top:0; left:0; width:100%;}
+  }
+
+  @media(max-width:880px){
+    .sidebar{left:-260px;}
+    .sidebar.open{left:0;}
+    .main{margin-left:0;}
+    .open-sidebar{
+      display:flex; width:38px; height:38px; border:2px solid var(--permit-teal); border-radius:6px;
+      background:none; align-items:center; justify-content:center; font-size:18px; color:var(--permit-teal);
+    }
+    .close-sidebar{display:block; align-self:flex-end; margin:14px 14px 0 auto; background:none; border:none; color:var(--paper); font-size:22px;}
+  }
+</style>
+</head>
+<body>
+
+<!-- Login gate: shown whenever there's no valid session. Replaces the old redirect-to-index.html
+     approach, which broke on some mobile browsers when the file was opened via a content:// link
+     instead of a normal file path (the relative navigation to "index.html" couldn't resolve). -->
+<div class="gate-overlay" id="gateOverlay">
+  <div class="permit-card">
+    <div class="permit-top">
+      <h3>Heritage Polytechnic</h3>
+      <span>PARKING SYSTEM — STAFF &amp; SECURITY SIGN IN</span>
+    </div>
+    <div class="perforation"></div>
+    <div class="permit-body">
+      <form id="gateLoginForm">
+        <div class="field">
+          <label for="gateEmail">Email</label>
+          <input type="email" id="gateEmail" required autocomplete="username">
+        </div>
+        <div class="field">
+          <label for="gatePassword">Password</label>
+          <input type="password" id="gatePassword" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="login-submit">Sign In</button>
+        <div class="login-msg" id="gateLoginMsg"></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="shell" id="appShell" style="display:none;">
+  <aside class="sidebar" id="sidebar">
+    <button class="close-sidebar" id="closeSidebarBtn">&times;</button>
+    <div class="brand">
+      <h1 id="sidebarHeader">Admin Panel</h1>
+      <span>Heritage Polytechnic</span>
+    </div>
+    <ul class="tab-list">
+      <li><button class="tab-btn active" data-tab="dashboard">📊 Dashboard</button></li>
+      <li><button class="tab-btn" data-tab="vehicles">🚗 Vehicles</button></li>
+      <li><button class="tab-btn" data-tab="slots">🅿️ Parking Slots</button></li>
+      <li><button class="tab-btn" data-tab="visitors">🧾 Visitor Log</button></li>
+      <li class="admin-only"><button class="tab-btn" data-tab="accounts">👤 Accounts</button></li>
+      <li class="admin-only"><button class="tab-btn" data-tab="logins">🔐 Login Activity</button></li>
+    </ul>
+    <div class="sidebar-footer">
+      <button class="logout-btn" id="logoutBtn">Log Out</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <button class="open-sidebar" id="openSidebarBtn">☰</button>
+        <h2 id="topbarTitle">Dashboard</h2>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span id="welcomeName" style="font-size:13px; color:#5A5F65;"></span>
+        <span class="role-pill" id="rolePill">Admin</span>
+      </div>
+    </div>
+
+    <div class="content-area">
+
+      <!-- DASHBOARD -->
+      <section class="panel active" id="panel-dashboard">
+        <div class="eyebrow">Overview</div>
+        <h3 class="title">Campus Parking at a Glance</h3>
+        <div class="stat-grid" id="statGrid">
+          <div class="stat-card"><div class="val" id="statOccupied">–</div><div class="lbl">Occupied Parking Spaces</div></div>
+          <div class="stat-card"><div class="val" id="statFree">–</div><div class="lbl">Available Parking Spaces</div></div>
+        </div>
+
+        <h3 class="title" style="font-size:18px; margin-top:32px;">Recent Parking Records</h3>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Vehicle No.</th><th>Owner</th><th>Slot</th><th>Entry Date</th><th>Entry Time</th><th>Exit Date</th><th>Exit Time</th></tr></thead>
+          <tbody id="recordsTableBody"></tbody>
+        </table></div>
+      </section>
+
+      <!-- VEHICLES -->
+      <section class="panel" id="panel-vehicles">
+        <div class="eyebrow">Registration</div>
+        <h3 class="title">Registered Vehicles</h3>
+        <div class="form-toolbar">
+          <span style="font-size:13px; color:#5A5F65;">Staff and student vehicles registered on the system.</span>
+          <button class="add-btn admin-only" id="addVehicleBtn">+ Register Vehicle</button>
+        </div>
+        <div class="search-row">
+          <input type="text" id="vehicleSearchInput" placeholder="Search by name, vehicle number, or department...">
+        </div>
+        <div class="form-card" id="vehicleForm">
+          <input type="hidden" id="vehicleEditId">
+          <div class="form-grid">
+            <div class="field"><label>Owner's Name</label><input id="vOwnerName"></div>
+            <div class="field"><label>Vehicle Number</label><input id="vPlate" style="font-family:'IBM Plex Mono';" placeholder="e.g. AKW 123 XY"></div>
+            <div class="field"><label>Department</label><input id="vDepartment" placeholder="e.g. Computer Science"></div>
+            <div class="field"><label>Vehicle Type</label>
+              <select id="vVehicleType">
+                <option value="Car">Car</option>
+                <option value="Motorcycle">Motorcycle</option>
+                <option value="Bus/Van">Bus / Van</option>
+                <option value="Tricycle">Tricycle</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="field"><label>Phone Number</label><input id="vPhone" style="font-family:'IBM Plex Mono';" placeholder="e.g. 0803XXXXXXX"></div>
+            <div class="field"><label>Assigned Slot Code</label><input id="vSlot" placeholder="e.g. A-12"></div>
+          </div>
+          <div class="form-actions">
+            <button class="save-btn" id="saveVehicleBtn">Save Vehicle</button>
+            <button class="cancel-btn" id="cancelVehicleBtn">Cancel</button>
+          </div>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Owner's Name</th><th>Vehicle No.</th><th>Department</th><th>Vehicle Type</th><th>Phone</th><th>Slot</th><th class="admin-only">Actions</th></tr></thead>
+          <tbody id="vehicleTableBody"></tbody>
+        </table></div>
+      </section>
+
+      <!-- PARKING SLOTS -->
+      <section class="panel" id="panel-slots">
+        <div class="eyebrow">Allocation</div>
+        <h3 class="title">Parking Slots</h3>
+        <div class="form-toolbar">
+          <span style="font-size:13px; color:#5A5F65;">Security can check vehicles in/out; only Admin can add or remove slots.</span>
+          <button class="add-btn admin-only" id="addSlotBtn">+ Add Slot</button>
+        </div>
+        <div class="form-card" id="slotForm">
+          <input type="hidden" id="slotEditId">
+          <div class="form-grid">
+            <div class="field"><label>Slot Code</label><input id="sCode" placeholder="e.g. A-12"></div>
+            <div class="field"><label>Zone</label><input id="sZone" placeholder="e.g. Engineering Block"></div>
+          </div>
+          <div class="form-actions">
+            <button class="save-btn" id="saveSlotBtn">Save Slot</button>
+            <button class="cancel-btn" id="cancelSlotBtn">Cancel</button>
+          </div>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Slot Code</th><th>Zone</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="slotTableBody"></tbody>
+        </table></div>
+      </section>
+
+      <!-- VISITOR LOG -->
+      <section class="panel" id="panel-visitors">
+        <div class="eyebrow">Gate Log</div>
+        <h3 class="title">Visitor Log</h3>
+        <div class="form-toolbar">
+          <span style="font-size:13px; color:#5A5F65;">Visitors are logged without a fixed slot assignment. Parking fee: ₦100 per hour (or part thereof), charged on checkout.</span>
+          <button class="add-btn" id="addVisitorBtn">+ Log Visitor</button>
+        </div>
+        <div class="form-card" id="visitorForm">
+          <input type="hidden" id="visitorEditId">
+          <div class="form-grid">
+            <div class="field"><label>Visitor Name</label><input id="visName"></div>
+            <div class="field"><label>Plate Number</label><input id="visPlate" style="font-family:'IBM Plex Mono';"></div>
+            <div class="field"><label>Purpose of Visit</label><input id="visPurpose"></div>
+          </div>
+          <div class="form-actions">
+            <button class="save-btn" id="saveVisitorBtn">Log Entry</button>
+            <button class="cancel-btn" id="cancelVisitorBtn">Cancel</button>
+          </div>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Visitor</th><th>Plate No.</th><th>Purpose</th><th>Time In</th><th>Time Out</th><th>Fee</th><th>Actions</th></tr></thead>
+          <tbody id="visitorTableBody"></tbody>
+        </table></div>
+      </section>
+
+      <!-- ACCOUNTS (admin only) -->
+      <section class="panel admin-only" id="panel-accounts">
+        <div class="eyebrow">User Management</div>
+        <h3 class="title">Staff, Student &amp; Security Accounts</h3>
+        <div class="form-toolbar">
+          <span style="font-size:13px; color:#5A5F65;">Controls who can log in to this dashboard.</span>
+          <button class="add-btn" id="addUserBtn">+ Add Account</button>
+        </div>
+        <div class="form-card" id="userForm">
+          <input type="hidden" id="userEditId">
+          <div class="form-grid">
+            <div class="field"><label>Full Name</label><input id="uName"></div>
+            <div class="field"><label>Email</label><input id="uEmail" type="email"></div>
+            <div class="field"><label>Password</label><input id="uPassword"></div>
+            <div class="field"><label>Role</label>
+              <select id="uRole">
+                <option value="admin">Admin</option>
+                <option value="security">Security</option>
+                <option value="staff">Staff</option>
+                <option value="student">Student</option>
+              </select>
+            </div>
+            <div class="field"><label>Department</label><input id="uDept"></div>
+            <div class="field"><label>Status</label>
+              <select id="uStatus"><option value="active">Active</option><option value="suspended">Suspended</option></select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="save-btn" id="saveUserBtn">Save Account</button>
+            <button class="cancel-btn" id="cancelUserBtn">Cancel</button>
+          </div>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Department</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="userTableBody"></tbody>
+        </table></div>
+      </section>
+
+      <!-- LOGIN ACTIVITY (admin only) -->
+      <section class="panel admin-only" id="panel-logins">
+        <div class="eyebrow">Accountability</div>
+        <h3 class="title">Login Activity</h3>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Name</th><th>Role</th><th>Timestamp</th></tr></thead>
+          <tbody id="loginTableBody"></tbody>
+        </table></div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- Hidden until generateReceipt() fills it and triggers window.print() -->
+<div id="receiptPrintArea"></div>
+
+<script>
+/* ---------- Firebase init (PLACEHOLDER CONFIG — replace with real project config) ---------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyC3VgVXXA4thGbHTgBIN7XinkeheCJoQ7w",
+  authDomain: "parking-6b82a.firebaseapp.com",
+  projectId: "parking-6b82a",
+  storageBucket: "parking-6b82a.firebasestorage.app",
+  messagingSenderId: "196846757350",
+  appId: "1:196846757350:web:7269abfb2daec051016227"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+/* ---------- Parking fee rate ----------
+   ASSUMPTION (flag to your supervisor if this isn't right): only VISITORS are
+   charged a parking fee, since staff and students park on an assigned slot as
+   part of their registration rather than paying per visit. Fee is charged on
+   checkout, based on time spent, rounded UP to the next full hour. Change the
+   rate below if your supervisor specifies a different figure or structure. */
+const VISITOR_RATE_PER_HOUR = 100; // in Naira (₦)
+
+/* ---------- Bootstrap admin (hardcoded, works before any Firestore user exists) ----------
+   NOTE FOR DEPLOYMENT: this hardcoded check only gets the very first login working before
+   the database has any users in it. Replace with Firebase Auth + hashed passwords before
+   this ever goes beyond a class demo. */
+const BOOTSTRAP_ADMIN = {
+  email: "admin@heritagepoly.edu.ng",
+  password: "Parking@2026",
+  name: "System Administrator",
+  role: "admin"
+};
+
+/* =========================================================
+   SESSION / LOGIN GATE
+   Nothing below (tabs, data loading) exists until a session is confirmed. This runs
+   entirely inside admin.html now — no cross-file redirect to index.html — because on
+   some mobile browsers a relative-path redirect fails when the file was opened via a
+   content:// link rather than a normal file path.
+   ========================================================= */
+let session = null;
+let isAdmin = false;
+
+const gateOverlay = document.getElementById('gateOverlay');
+const appShell = document.getElementById('appShell');
+const gateLoginMsg = document.getElementById('gateLoginMsg');
+
+const existingSession = sessionStorage.getItem('parkingSession');
+if (existingSession) {
+  enterApp(JSON.parse(existingSession));
+}
+
+document.getElementById('gateLoginForm').addEventListener('submit', async function(e){
+  e.preventDefault();
+  const email = document.getElementById('gateEmail').value.trim().toLowerCase();
+  const password = document.getElementById('gatePassword').value;
+  gateLoginMsg.textContent = "";
+  gateLoginMsg.className = "login-msg";
+
+  try {
+    // 1. Bootstrap admin check (before touching Firestore at all)
+    if (email === BOOTSTRAP_ADMIN.email.toLowerCase() && password === BOOTSTRAP_ADMIN.password) {
+      await finishLogin({ uid: "bootstrap-admin", name: BOOTSTRAP_ADMIN.name, email: BOOTSTRAP_ADMIN.email, role: BOOTSTRAP_ADMIN.role });
+      return;
+    }
+
+    // 2. Firestore lookup: query users collection by email, compare plaintext password.
+    //    NOTE: plaintext comparison only because this project intentionally skips Firebase
+    //    Auth for simplicity — a real deployment should hash passwords via Firebase Auth.
+    const snap = await db.collection('users').where('email', '==', email).limit(1).get();
+    if (snap.empty) {
+      gateLoginMsg.textContent = "No account found with that email.";
+      gateLoginMsg.classList.add('error');
+      return;
+    }
+    const userDoc = snap.docs[0];
+    const userData = userDoc.data();
+
+    if (userData.status === 'suspended') {
+      gateLoginMsg.textContent = "This account has been suspended. Contact the admin.";
+      gateLoginMsg.classList.add('error');
+      return;
+    }
+    if (userData.password !== password) {
+      gateLoginMsg.textContent = "Incorrect password.";
+      gateLoginMsg.classList.add('error');
+      return;
+    }
+
+    await finishLogin({ uid: userDoc.id, name: userData.name, email: userData.email, role: userData.role });
+
+  } catch (err) {
+    console.error(err);
+    gateLoginMsg.textContent = "Something went wrong. Check your Firebase config / connection.";
+    gateLoginMsg.classList.add('error');
+  }
+});
+
+async function finishLogin(sessionUser){
+  await db.collection('loginLogs').add({
+    userId: sessionUser.uid,
+    name: sessionUser.name,
+    role: sessionUser.role,
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  sessionStorage.setItem('parkingSession', JSON.stringify(sessionUser));
+  gateLoginMsg.textContent = "Signed in…";
+  gateLoginMsg.classList.add('ok');
+  enterApp(sessionUser);
+}
+
+function enterApp(sessionUser){
+  session = sessionUser;
+  isAdmin = session.role === 'admin';
+
+  gateOverlay.style.display = 'none';
+  appShell.style.display = 'flex';
+
+  /* Reflect the signed-in role in the header/labels (never hardcoded) */
+  document.getElementById('sidebarHeader').textContent = isAdmin ? "Admin Panel" : "Security Panel";
+  document.getElementById('welcomeName').textContent = session.name || '';
+  const rolePill = document.getElementById('rolePill');
+  rolePill.textContent = isAdmin ? "Admin" : "Security";
+  if (!isAdmin) rolePill.classList.add('security'); else rolePill.classList.remove('security');
+
+  /* ---------- Enforcement point 1: hide admin-only UI for non-admins ---------- */
+  document.querySelectorAll('.admin-only').forEach(el => el.style.display = isAdmin ? '' : 'none');
+
+  loadDashboard();
+}
+
+/* ---------- Sidebar / tab navigation ---------- */
+const sidebar = document.getElementById('sidebar');
+document.getElementById('openSidebarBtn').addEventListener('click', () => sidebar.classList.add('open'));
+document.getElementById('closeSidebarBtn').addEventListener('click', () => sidebar.classList.remove('open'));
+
+const tabButtons = document.querySelectorAll('.tab-btn');
+const panels = document.querySelectorAll('.panel');
+const topbarTitle = document.getElementById('topbarTitle');
+
+tabButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    // Enforcement point 1 (again): a hidden admin-only tab button can't even be clicked
+    // by a non-admin since it's display:none, but we double-check here too.
+    if (['accounts','logins'].includes(tab) && !isAdmin) return;
+
+    tabButtons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    panels.forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + tab).classList.add('active');
+    topbarTitle.textContent = btn.textContent.trim().replace(/^\S+\s/, '');
+    sidebar.classList.remove('open');
+    loadTabData(tab);
+  });
+});
+
+function loadTabData(tab){
+  if (tab === 'dashboard') loadDashboard();
+  if (tab === 'vehicles') loadVehicles();
+  if (tab === 'slots') loadSlots();
+  if (tab === 'visitors') loadVisitors();
+  if (tab === 'accounts' && isAdmin) loadUsers();      // Enforcement point 3: never fetch users unless admin
+  if (tab === 'logins' && isAdmin) loadLoginLogs();     // Enforcement point 3: never fetch login logs unless admin
+}
+
+/* ---------- Logout: return to the gate, no cross-file navigation needed ---------- */
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  sessionStorage.removeItem('parkingSession');
+  session = null;
+  isAdmin = false;
+  appShell.style.display = 'none';
+  gateOverlay.style.display = 'flex';
+  document.getElementById('gateLoginForm').reset();
+  gateLoginMsg.textContent = '';
+  gateLoginMsg.className = 'login-msg';
+});
+
+/* =========================================================
+   DASHBOARD
+   ========================================================= */
+async function loadDashboard(){
+  try{
+    const slotsSnap = await db.collection('parkingSlots').get();
+    let free = 0, occupied = 0;
+    slotsSnap.forEach(d => { d.data().status === 'occupied' ? occupied++ : free++; });
+    document.getElementById('statOccupied').textContent = occupied;
+    document.getElementById('statFree').textContent = free;
+
+    // Recent parking records module — entry date/time, exit date/time
+    const tbody = document.getElementById('recordsTableBody');
+    tbody.innerHTML = '';
+    const recSnap = await db.collection('parkingRecords').orderBy('entryTimestamp','desc').limit(10).get();
+    if (recSnap.empty){ tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No parking records yet — check a vehicle in from the Parking Slots tab.</td></tr>'; return; }
+    recSnap.forEach(doc => {
+      const r = doc.data();
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-family:'IBM Plex Mono';">${escapeHtml(r.plate||'')}</td>
+        <td>${escapeHtml(r.ownerName||'')}</td>
+        <td>${escapeHtml(r.slotCode||'')}</td>
+        <td>${formatDate(r.entryTimestamp)}</td>
+        <td>${formatTime(r.entryTimestamp)}</td>
+        <td>${r.exitTimestamp ? formatDate(r.exitTimestamp) : '<span class="badge occupied">still parked</span>'}</td>
+        <td>${r.exitTimestamp ? formatTime(r.exitTimestamp) : '—'}</td>`;
+      tbody.appendChild(tr);
+    });
+  } catch(err){ console.error(err); }
+}
+
+/* =========================================================
+   VEHICLES
+   ========================================================= */
+const vehicleForm = document.getElementById('vehicleForm');
+document.getElementById('addVehicleBtn')?.addEventListener('click', () => {
+  if (!isAdmin) return; // Enforcement point 2: guard the function itself
+  document.getElementById('vehicleEditId').value = '';
+  ['vOwnerName','vPlate','vDepartment','vPhone','vSlot'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('vVehicleType').value = 'Car';
+  vehicleForm.classList.add('open');
+});
+document.getElementById('cancelVehicleBtn').addEventListener('click', () => vehicleForm.classList.remove('open'));
+
+document.getElementById('saveVehicleBtn').addEventListener('click', async () => {
+  if (!isAdmin) return; // Enforcement point 2
+  const id = document.getElementById('vehicleEditId').value;
+  const data = {
+    ownerName: document.getElementById('vOwnerName').value,
+    plate: document.getElementById('vPlate').value.toUpperCase(),
+    department: document.getElementById('vDepartment').value,
+    vehicleType: document.getElementById('vVehicleType').value,
+    phone: document.getElementById('vPhone').value,
+    slotCode: document.getElementById('vSlot').value.toUpperCase()
+  };
+  if (!data.ownerName || !data.plate) return;
+  try{
+    if (id) await db.collection('vehicles').doc(id).update(data);
+    else await db.collection('vehicles').add(data);
+    vehicleForm.classList.remove('open');
+    loadVehicles();
+  } catch(err){ console.error(err); }
+});
+
+let allVehicles = []; // client-side cache so the search box can filter without re-hitting Firestore per keystroke
+
+async function loadVehicles(){
+  try{
+    const snap = await db.collection('vehicles').get();
+    allVehicles = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    renderVehicleTable(allVehicles);
+  } catch(err){ console.error(err); }
+}
+
+function renderVehicleTable(list){
+  const tbody = document.getElementById('vehicleTableBody');
+  tbody.innerHTML = '';
+  if (!list.length){ tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No matching vehicles found.</td></tr>'; return; }
+  list.forEach(v => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(v.ownerName||'')}</td>
+      <td style="font-family:'IBM Plex Mono';">${escapeHtml(v.plate||'')}</td>
+      <td>${escapeHtml(v.department||'')}</td>
+      <td>${escapeHtml(v.vehicleType||'')}</td>
+      <td style="font-family:'IBM Plex Mono';">${escapeHtml(v.phone||'')}</td>
+      <td>${escapeHtml(v.slotCode||'—')}</td>
+      <td class="row-actions admin-only">
+        <button class="edit-btn" onclick="editVehicle('${v.id}')">Edit</button>
+        <button class="del-btn" onclick="deleteVehicle('${v.id}')">Delete</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+  if (!isAdmin) document.querySelectorAll('#vehicleTableBody .admin-only').forEach(el => el.style.display='none');
+}
+
+document.getElementById('vehicleSearchInput').addEventListener('input', (e) => {
+  const q = e.target.value.trim().toLowerCase();
+  if (!q){ renderVehicleTable(allVehicles); return; }
+  const filtered = allVehicles.filter(v =>
+    (v.ownerName||'').toLowerCase().includes(q) ||
+    (v.plate||'').toLowerCase().includes(q) ||
+    (v.department||'').toLowerCase().includes(q)
+  );
+  renderVehicleTable(filtered);
+});
+
+window.editVehicle = async function(id){
+  if (!isAdmin) return; // Enforcement point 2
+  const doc = await db.collection('vehicles').doc(id).get();
+  const v = doc.data();
+  document.getElementById('vehicleEditId').value = id;
+  document.getElementById('vOwnerName').value = v.ownerName || '';
+  document.getElementById('vPlate').value = v.plate || '';
+  document.getElementById('vDepartment').value = v.department || '';
+  document.getElementById('vVehicleType').value = v.vehicleType || 'Car';
+  document.getElementById('vPhone').value = v.phone || '';
+  document.getElementById('vSlot').value = v.slotCode || '';
+  vehicleForm.classList.add('open');
+};
+window.deleteVehicle = async function(id){
+  if (!isAdmin) return; // Enforcement point 2: only Admin may delete
+  if (!confirm('Delete this vehicle record?')) return;
+  await db.collection('vehicles').doc(id).delete();
+  loadVehicles();
+};
+
+/* =========================================================
+   PARKING SLOTS
+   ========================================================= */
+const slotForm = document.getElementById('slotForm');
+document.getElementById('addSlotBtn')?.addEventListener('click', () => {
+  if (!isAdmin) return; // Enforcement point 2
+  document.getElementById('slotEditId').value = '';
+  document.getElementById('sCode').value = '';
+  document.getElementById('sZone').value = '';
+  slotForm.classList.add('open');
+});
+document.getElementById('cancelSlotBtn').addEventListener('click', () => slotForm.classList.remove('open'));
+
+document.getElementById('saveSlotBtn').addEventListener('click', async () => {
+  if (!isAdmin) return; // Enforcement point 2: only Admin adds/edits slots
+  const id = document.getElementById('slotEditId').value;
+  const data = {
+    code: document.getElementById('sCode').value.toUpperCase(),
+    zone: document.getElementById('sZone').value,
+    status: 'free'
+  };
+  if (!data.code) return;
+  try{
+    if (id) await db.collection('parkingSlots').doc(id).update({code:data.code, zone:data.zone});
+    else await db.collection('parkingSlots').add(data);
+    slotForm.classList.remove('open');
+    loadSlots();
+  } catch(err){ console.error(err); }
+});
+
+async function loadSlots(){
+  const tbody = document.getElementById('slotTableBody');
+  tbody.innerHTML = '';
+  try{
+    const snap = await db.collection('parkingSlots').get();
+    if (snap.empty){ tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No parking slots set up yet.</td></tr>'; return; }
+    snap.forEach(doc => {
+      const s = doc.data();
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-family:'IBM Plex Mono';">${escapeHtml(s.code||'')}</td>
+        <td>${escapeHtml(s.zone||'')}</td>
+        <td><span class="badge ${s.status==='occupied'?'occupied':'free'}">${s.status||'free'}</span></td>
+        <td class="row-actions">
+          <button class="toggle-btn" onclick="toggleSlot('${doc.id}','${s.status||'free'}','${escapeHtml(s.code||'')}')">
+            ${s.status === 'occupied' ? 'Check Out' : 'Check In'}
+          </button>
+          <span class="admin-only">
+            <button class="edit-btn" onclick="editSlot('${doc.id}')">Edit</button>
+            <button class="del-btn" onclick="deleteSlot('${doc.id}')">Delete</button>
+          </span>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+    if (!isAdmin) document.querySelectorAll('#slotTableBody .admin-only').forEach(el => el.style.display='none');
+  } catch(err){ console.error(err); }
+}
+
+// Both Admin and Security can toggle occupancy (that's Security's operational job at the gate).
+// This is also where the Recent Parking Records module gets its data: checking a vehicle in
+// opens a new record with an entry timestamp; checking it out closes that record with an exit
+// timestamp. Dashboard splits each timestamp into date + time when it displays them.
+window.toggleSlot = async function(id, currentStatus, slotCode){
+  const newStatus = currentStatus === 'occupied' ? 'free' : 'occupied';
+  await db.collection('parkingSlots').doc(id).update({status:newStatus});
+
+  if (newStatus === 'occupied') {
+    // Entry: look up whichever vehicle is assigned to this slot, then open a new record.
+    let ownerName = '', plate = '';
+    try{
+      const vSnap = await db.collection('vehicles').where('slotCode','==', slotCode).limit(1).get();
+      if (!vSnap.empty) { const v = vSnap.docs[0].data(); ownerName = v.ownerName || ''; plate = v.plate || ''; }
+    } catch(e){ console.error(e); }
+    await db.collection('parkingRecords').add({
+      slotCode, ownerName, plate,
+      entryTimestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      exitTimestamp: null
+    });
+  } else {
+    // Exit: find this slot's most recent still-open record and close it.
+    // (Filtered client-side on purpose, to avoid needing a Firestore composite index.)
+    try{
+      const snap = await db.collection('parkingRecords').where('slotCode','==', slotCode).get();
+      const openDocs = snap.docs.filter(d => !d.data().exitTimestamp);
+      openDocs.sort((a,b) => (b.data().entryTimestamp?.toMillis()||0) - (a.data().entryTimestamp?.toMillis()||0));
+      if (openDocs.length) {
+        await db.collection('parkingRecords').doc(openDocs[0].id).update({
+          exitTimestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+    } catch(e){ console.error(e); }
+  }
+
+  loadSlots();
+  loadDashboard();
+};
+window.editSlot = async function(id){
+  if (!isAdmin) return; // Enforcement point 2
+  const doc = await db.collection('parkingSlots').doc(id).get();
+  const s = doc.data();
+  document.getElementById('slotEditId').value = id;
+  document.getElementById('sCode').value = s.code || '';
+  document.getElementById('sZone').value = s.zone || '';
+  slotForm.classList.add('open');
+};
+window.deleteSlot = async function(id){
+  if (!isAdmin) return; // Enforcement point 2: only Admin may delete
+  if (!confirm('Delete this parking slot?')) return;
+  await db.collection('parkingSlots').doc(id).delete();
+  loadSlots();
+};
+
+/* =========================================================
+   VISITOR LOG  (Admin + Security can add/edit; only Admin deletes)
+   ========================================================= */
+const visitorForm = document.getElementById('visitorForm');
+document.getElementById('addVisitorBtn').addEventListener('click', () => {
+  document.getElementById('visitorEditId').value = '';
+  ['visName','visPlate','visPurpose'].forEach(id => document.getElementById(id).value = '');
+  visitorForm.classList.add('open');
+});
+document.getElementById('cancelVisitorBtn').addEventListener('click', () => visitorForm.classList.remove('open'));
+
+document.getElementById('saveVisitorBtn').addEventListener('click', async () => {
+  const data = {
+    visitorName: document.getElementById('visName').value,
+    plate: document.getElementById('visPlate').value.toUpperCase(),
+    purpose: document.getElementById('visPurpose').value,
+    timeIn: firebase.firestore.FieldValue.serverTimestamp(),
+    timeOut: null,
+    loggedBy: session.name
+  };
+  if (!data.visitorName) return;
+  try{
+    await db.collection('visitorLogs').add(data);
+    visitorForm.classList.remove('open');
+    loadVisitors();
+  } catch(err){ console.error(err); }
+});
+
+async function loadVisitors(){
+  const tbody = document.getElementById('visitorTableBody');
+  tbody.innerHTML = '';
+  try{
+    const snap = await db.collection('visitorLogs').orderBy('timeIn','desc').get();
+    if (snap.empty){ tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No visitors logged yet.</td></tr>'; return; }
+    snap.forEach(doc => {
+      const v = doc.data();
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${escapeHtml(v.visitorName||'')}</td>
+        <td style="font-family:'IBM Plex Mono';">${escapeHtml(v.plate||'')}</td>
+        <td>${escapeHtml(v.purpose||'')}</td>
+        <td>${formatTimestamp(v.timeIn)}</td>
+        <td>${v.timeOut ? formatTimestamp(v.timeOut) : '<span class="badge occupied">on campus</span>'}</td>
+        <td>${v.fee != null ? '₦' + v.fee.toLocaleString() : '—'}</td>
+        <td class="row-actions">
+          ${!v.timeOut ? `<button class="toggle-btn" onclick="checkOutVisitor('${doc.id}')">Check Out</button>` : ''}
+          ${v.timeOut ? `<button class="toggle-btn" onclick="generateReceipt('${doc.id}')">Receipt</button>` : ''}
+          <span class="admin-only"><button class="del-btn" onclick="deleteVisitor('${doc.id}')">Delete</button></span>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+    if (!isAdmin) document.querySelectorAll('#visitorTableBody .admin-only').forEach(el => el.style.display='none');
+  } catch(err){ console.error(err); }
+}
+window.checkOutVisitor = async function(id){
+  const doc = await db.collection('visitorLogs').doc(id).get();
+  const v = doc.data();
+  const checkoutTime = new Date();
+  const entryTime = v.timeIn && v.timeIn.toDate ? v.timeIn.toDate() : checkoutTime;
+  const hoursSpent = Math.max(1, Math.ceil((checkoutTime - entryTime) / 3600000)); // round up, minimum 1 hour
+  const fee = hoursSpent * VISITOR_RATE_PER_HOUR;
+
+  await db.collection('visitorLogs').doc(id).update({
+    timeOut: firebase.firestore.FieldValue.serverTimestamp(),
+    hoursSpent,
+    fee
+  });
+  loadVisitors();
+};
+window.deleteVisitor = async function(id){
+  if (!isAdmin) return; // Enforcement point 2: only Admin may delete
+  if (!confirm('Delete this visitor record?')) return;
+  await db.collection('visitorLogs').doc(id).delete();
+  loadVisitors();
+};
+
+/* ---------- Receipt generation ----------
+   Builds a printable receipt into a hidden area, then triggers the browser's
+   print dialog (the person can print to paper or "Save as PDF"). */
+window.generateReceipt = async function(id){
+  const doc = await db.collection('visitorLogs').doc(id).get();
+  const v = doc.data();
+  const area = document.getElementById('receiptPrintArea');
+  area.innerHTML = `
+    <div class="receipt-box">
+      <h2>Heritage Polytechnic — Parking Receipt</h2>
+      <p class="receipt-sub">Vehicle Parking Management System</p>
+      <div class="receipt-line"></div>
+      <table class="receipt-table">
+        <tr><td>Visitor</td><td>${escapeHtml(v.visitorName||'')}</td></tr>
+        <tr><td>Plate Number</td><td>${escapeHtml(v.plate||'')}</td></tr>
+        <tr><td>Purpose</td><td>${escapeHtml(v.purpose||'')}</td></tr>
+        <tr><td>Time In</td><td>${formatTimestamp(v.timeIn)}</td></tr>
+        <tr><td>Time Out</td><td>${formatTimestamp(v.timeOut)}</td></tr>
+        <tr><td>Duration</td><td>${v.hoursSpent||1} hour(s) (rounded up)</td></tr>
+        <tr><td>Rate</td><td>₦${VISITOR_RATE_PER_HOUR} / hour</td></tr>
+      </table>
+      <div class="receipt-line"></div>
+      <div class="receipt-total">Total Paid: ₦${(v.fee||0).toLocaleString()}</div>
+      <p class="receipt-footer">Logged by: ${escapeHtml(v.loggedBy||'—')} · Printed ${new Date().toLocaleString('en-GB')}</p>
+    </div>`;
+  window.print();
+};
+
+/* =========================================================
+   ACCOUNTS (admin only end-to-end)
+   ========================================================= */
+const userForm = document.getElementById('userForm');
+document.getElementById('addUserBtn')?.addEventListener('click', () => {
+  if (!isAdmin) return; // Enforcement point 2
+  document.getElementById('userEditId').value = '';
+  ['uName','uEmail','uPassword','uDept'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('uRole').value = 'staff';
+  document.getElementById('uStatus').value = 'active';
+  userForm.classList.add('open');
+});
+document.getElementById('cancelUserBtn')?.addEventListener('click', () => userForm.classList.remove('open'));
+
+document.getElementById('saveUserBtn')?.addEventListener('click', async () => {
+  if (!isAdmin) return; // Enforcement point 2: account management is admin-only
+  const id = document.getElementById('userEditId').value;
+  const data = {
+    name: document.getElementById('uName').value,
+    email: document.getElementById('uEmail').value.trim().toLowerCase(),
+    password: document.getElementById('uPassword').value,
+    role: document.getElementById('uRole').value,
+    department: document.getElementById('uDept').value,
+    status: document.getElementById('uStatus').value
+  };
+  if (!data.name || !data.email) return;
+  try{
+    if (id) await db.collection('users').doc(id).update(data);
+    else await db.collection('users').add(data);
+    userForm.classList.remove('open');
+    loadUsers();
+  } catch(err){ console.error(err); }
+});
+
+// Enforcement point 3: this function is only ever called from loadTabData() when isAdmin is true —
+// a Security account can never trigger a fetch of the users collection (which holds plaintext passwords).
+async function loadUsers(){
+  if (!isAdmin) return;
+  const tbody = document.getElementById('userTableBody');
+  tbody.innerHTML = '';
+  try{
+    const snap = await db.collection('users').get();
+    if (snap.empty){ tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No accounts yet — add staff, students, or security.</td></tr>'; return; }
+    snap.forEach(doc => {
+      const u = doc.data();
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${escapeHtml(u.name||'')}</td>
+        <td>${escapeHtml(u.email||'')}</td>
+        <td>${escapeHtml(u.role||'')}</td>
+        <td>${escapeHtml(u.department||'')}</td>
+        <td><span class="badge ${u.status==='suspended'?'suspended':'active-status'}">${u.status||'active'}</span></td>
+        <td class="row-actions">
+          <button class="edit-btn" onclick="editUser('${doc.id}')">Edit</button>
+          <button class="del-btn" onclick="deleteUser('${doc.id}')">Delete</button>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  } catch(err){ console.error(err); }
+}
+window.editUser = async function(id){
+  if (!isAdmin) return; // Enforcement point 2
+  const doc = await db.collection('users').doc(id).get();
+  const u = doc.data();
+  document.getElementById('userEditId').value = id;
+  document.getElementById('uName').value = u.name || '';
+  document.getElementById('uEmail').value = u.email || '';
+  document.getElementById('uPassword').value = u.password || '';
+  document.getElementById('uRole').value = u.role || 'staff';
+  document.getElementById('uDept').value = u.department || '';
+  document.getElementById('uStatus').value = u.status || 'active';
+  userForm.classList.add('open');
+};
+window.deleteUser = async function(id){
+  if (!isAdmin) return; // Enforcement point 2
+  if (!confirm('Delete this account? They will no longer be able to log in.')) return;
+  await db.collection('users').doc(id).delete();
+  loadUsers();
+};
+
+/* =========================================================
+   LOGIN ACTIVITY (admin only end-to-end)
+   ========================================================= */
+// Enforcement point 3: only called when isAdmin is true from loadTabData()
+async function loadLoginLogs(){
+  if (!isAdmin) return;
+  const tbody = document.getElementById('loginTableBody');
+  tbody.innerHTML = '';
+  try{
+    const snap = await db.collection('loginLogs').orderBy('timestamp','desc').limit(100).get();
+    if (snap.empty){ tbody.innerHTML = '<tr><td colspan="3" class="empty-state">No login activity yet.</td></tr>'; return; }
+    snap.forEach(doc => {
+      const l = doc.data();
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${escapeHtml(l.name||'')}</td>
+        <td>${escapeHtml(l.role||'')}</td>
+        <td>${formatTimestamp(l.timestamp)}</td>`;
+      tbody.appendChild(tr);
+    });
+  } catch(err){ console.error(err); }
+}
+
+/* ---------- Helpers ---------- */
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function formatTimestamp(ts){
+  if (!ts) return '—';
+  const date = ts.toDate ? ts.toDate() : new Date(ts);
+  return date.toLocaleString('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+function formatDate(ts){
+  if (!ts) return '—';
+  const date = ts.toDate ? ts.toDate() : new Date(ts);
+  return date.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+}
+function formatTime(ts){
+  if (!ts) return '—';
+  const date = ts.toDate ? ts.toDate() : new Date(ts);
+  return date.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+}
+</script>
+
+</body>
+</html>
